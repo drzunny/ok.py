@@ -14,7 +14,24 @@ def i_am_cleaner():
 
 @pyok.test
 def check_it_out():
-    pyok.expect(1 == 2)
+    assert 1 != 2
+
+@pyok.test
+def check_it_out2():
+    assert 1 - 2 > 0
+
+@pyok.benchmark(n=1000, timeout=1000)
+def benchmark_is_ok():
+    n = 0
+    for x in xrange(100):
+        n += x
+
+
+@pyok.benchmark(n=1, timeout=1)
+def benchmark_is_ok2():
+    import time
+    time.sleep(3)
+
 
 
 if __name__ == '__main__':

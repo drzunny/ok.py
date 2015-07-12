@@ -10,6 +10,7 @@ import time
 import inspect
 import platform
 import colorama
+import cStringIO
 import traceback
 
 colorama.init(autoreset=True)
@@ -70,36 +71,56 @@ def _show_me_logo():
 
 
 def _parse_assert_error(s):
+    ret = {'pass': False, 'full': s}
     if not s:
-        return None
-    _, file_info, what, _ = s.split('\n')
+        return ret
+    infos = s.strip().split('\n')
+    file_info, what = infos[-3], infos[-2]
     r = re.compile('File "([^"]+)", line (\d+), in (\w+)')
     match = r.findall(file_info)
     if match:
         filename, line, fn = match[0]
     else:
-        return None
+        return ret
     what = what.strip()
-    return {'file': filename, 'line': line, 'function': fn, 'what': what}
+    ret.update({'pass': False, 'file': filename, 'line': int(line), 'function': fn, 'what': what})
+    return ret
 
 # ----------------------------------------------
 #   core
 # ----------------------------------------------
 class OKCore(object):
     def __init__(self):
+        self.filename = None
         self.ready = None
         self.cleaner = None
-        self.cases = {}
-        self.result = []
+        self.benchmark = []
+        self.cases = []
 
-    def register(self, name, func):
-        src = inspect.getabsfile(func)
-        name = '%s:%s' % (os.path.basename(src), name)
-        self.cases[name +':test'] = func
+    def register(self, func):
+        self.cases.append(func)
+
+    def performance(self, func):
+        self.benchmark.append(func)
 
     def loop(self):
-        for rs in self.result:
-            yield rs
+        filename = None
+        if self.cases:
+            for fn in self.cases:
+                src = fn.__src__
+                if filename != src:
+                    filename = src
+                    g_logger.space(2).say('Test Cases - %s:\n\n' % src)
+                yield fn()
+            g_logger.space(2).say('\n\n\n')
+        filename = None
+        if self.benchmark:
+            for fn in self.benchmark:
+                src = fn.__src__
+                if filename != src:
+                    filename = src
+                    g_logger.space(2).say('Benchmark - %s:\n\n' % src)
+                yield fn()
 
 
 _core = OKCore()
@@ -113,21 +134,35 @@ def ready(fn):
 
 
 def test(fn):
-    _core.register(fn.__name__, fn)
+    def __test_body():
+        err = {'pass': True, 'name': fn.__name__, 'desc': fn.__doc__}
+        try:
+            fn()
+        except AssertionError, e:
+            s = cStringIO.StringIO()
+            traceback.print_exc(file=s)
+            info = _parse_assert_error(s.getvalue())
+            err.update(info)
+            s.close()
+        return err
+    __test_body.__src__ = inspect.getabsfile(fn)
+    _core.register(__test_body)
     return fn
 
 
 def benchmark(n=1, timeout=1000):
     def __benchmark_wrap(fn):
         def __benchmark_body():
+            ret = {'name': fn.__name__, 'desc': fn.__doc__}
             t = time.time()
             for i in range(n):
                 fn()
-            # TODO: add into result (timeover or not)
-            return time.time() - t
-        _core.register(fn.__name__, fn, type_name='benchmark')
-        return __benchmark_body
-
+            cost = time.time() - t
+            ret.update({'cost': cost, 'pass': cost <= timeout, 'timeout': timeout, 'retry': n})
+            return ret
+        __benchmark_body.__src__ = inspect.getabsfile(fn)
+        _core.performance(__benchmark_body)
+        return fn
     return __benchmark_wrap
 
 
@@ -138,46 +173,40 @@ def cleaner(fn):
 # ----------------------------------------------
 #   test apis
 # ----------------------------------------------
-def expect(b):
+def catch(proc):
     try:
-        assert b
-    except AssertionError, e:
-        assert_error = None
-        with cStringIO.StringIO() as s:
-            traceback.print_exc(file=s)
-            assert_error = _parse_assert_error(s.getvalue())
-        if assert_error:
-            # TODO: add into result
-            pass
-
-
-def assert_raise(proc, catch=None):
-    pass
+        proc()
+    except Exception, e:
+        return e
 
 
 def run():
     succ = True
-    counter = {'pass': 0, 'fail': 0, 'elapsed': 0}
+    counter = {'pass': 0, 'fail': 0, 'elapsed': time.time()}
     # show logo
     _show_me_logo()
-
     # if initialize callback is defined
     if _core.ready:
         _core.ready()
 
     # startup test
     for case in _core.loop():
-        counter['elapsed'] += case.elapsed
-        if case.ok:
+        if case['pass']:
             counter['pass'] += 1
-            g_logger.space(8).ok().space(4).say(case.message)
+            g_logger.space(8).ok().space(4).say(case['name'])
         else:
             succ = False
-            couter['fail'] += 1
-            g_logger.space(8).fail().space(4).say(case.message)
+            counter['fail'] += 1
+            g_logger.space(8).fail().space(4).say(case['name'])
+            if 'what' in case:
+                g_logger.space(4).say('(%s, line:%d)' % (case['what'], case['line']))
 
+        if 'cost' in case:
+            g_logger.space(4).say('(n: %d, cost:%f, limit:%f)' % (case['retry'], case['cost'], case['timeout']))
+        g_logger.flush()
+
+    counter['elapsed'] = time.time() - counter['elapsed']
     g_logger.summary(succ, counter['pass'], counter['fail'], counter['elapsed'])
-    # if cleaner callback is defined
     if _core.cleaner:
         _core.cleaner()
 
