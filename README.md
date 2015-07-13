@@ -4,33 +4,59 @@
 
 > Image from Internet
 
-`ok.py` is a simple and rough test tool, not a powerful test framework like `nose` or `unittest`, but it's pretty and lightweight.
+**OK.py** is a simple and rough test tool, not a powerful test framework like `nose` or `unittest`, but it's pretty and lightweight.
+
+I'm just a programmer, not a tester. For me, **TEST** means that I input a data to a API, then check the output is whether as same as my expectation.
+
+So I wrote **OK.py**.
+
+If you only care about whether the API(s) output as same as it could be, and do not concern about its environment(such as multi-thread, multi-process), **OK.py** is worth to try.
+
+> **OK.py** will support output JSON result to file in future release
+
+> `EXPECT` is not supported in **OK.py**. Since you want to test your code,  **DON'T FORGIVE ANY ERROR**. `ASSERT` is our good friend.
 
 # how to use
 
-There is no `setUp` or `tearDown` function in your test case, `ok.py` defines test case(s) explicitly:
+There is no `setUp` or `tearDown` function in your test case, **OK.py** defines test case(s) explicitly:
 
 ```python
+G_ERROR_NUMBER = None
 
-import pyok
+def outer_exception():
+    return 1/0-3
+
+def catcher_exception(n):
+    return 1/(n-2)
 
 @pyok.ready
 def are_you_ready():
-    pass
-
+    global G_ERROR_NUMBER
+    G_ERROR_NUMBER = 2
 
 @pyok.cleaner
 def i_am_cleaner():
-    pass
-
+    global G_ERROR_NUMBER
+    G_ERROR_NUMBER = None
 
 @pyok.test
-def check_it_out():
+def check_it_true():
     assert 1 != 2
 
 @pyok.test
-def check_it_out2():
-    assert 1 - 2 > 0
+def check_it_wrong():
+    assert (1 - 2) > 0
+
+@pyok.test
+def check_it_no_name_but_doc():
+    """
+            run outer_exception (this is a __doc__)
+    """
+    a = outer_exception()
+
+@pyok.test
+def check_it_catch():
+    assert pyok.catch(catcher_exception, G_ERROR_NUMBER) in (ZeroDivisionError,)
 
 @pyok.benchmark(n=1000, timeout=1000)
 def benchmark_is_ok():
@@ -38,22 +64,18 @@ def benchmark_is_ok():
     for x in xrange(100):
         n += x
 
-
 @pyok.benchmark(n=1, timeout=1)
-def benchmark_is_ok2():
+def benchmark_is_fail():
     import time
     time.sleep(3)
-
-
 
 if __name__ == '__main__':
     pyok.run()
 
-
-
 ```
 
 Thanks for Python's decorator, no "**test**" in our function name now.
+
 
 # requirement
 

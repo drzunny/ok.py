@@ -122,6 +122,11 @@ def _parse_exception_error(src, s, e):
             break
     return error
 
+
+def _parse_except_error():
+    pass
+
+
 def _reason_dict(d, **keys):
     output, s = '(%s)', ''
     first = True
@@ -184,7 +189,8 @@ def ready(fn):
 
 def test(fn):
     def __test_body():
-        ret = FormDict(ok=True, name=fn.__name__, desc=fn.__doc__, src=inspect.getabsfile(fn))
+        doc = fn.__doc__.strip() if fn.__doc__ else ''
+        ret = FormDict(ok=True, name=fn.__name__, desc=doc, src=inspect.getabsfile(fn))
         try:
             fn()
         except Exception, e:
@@ -205,7 +211,8 @@ def test(fn):
 def benchmark(n=1, timeout=1000):
     def __benchmark_wrap(fn):
         def __benchmark_body():
-            ret = FormDict(ok=True, name=fn.__name__, desc=fn.__doc__, src=inspect.getabsfile(fn))
+            doc = fn.__doc__.strip() if fn.__doc__ else ''
+            ret = FormDict(ok=True, name=fn.__name__, desc=doc, src=inspect.getabsfile(fn))
             ret.benchmark = {'retry': n, 'timeout': timeout, 'cost': 0}
             fn_src = inspect.getabsfile(fn)
             cost = 0
@@ -237,11 +244,11 @@ def cleaner(fn):
 # ----------------------------------------------
 #   test apis
 # ----------------------------------------------
-def catch(proc):
+def catch(proc, *args, **kwargs):
     try:
-        proc()
+        proc(*args, **kwargs)
     except Exception, e:
-        return e
+        return e.__class__
 
 
 def run():
