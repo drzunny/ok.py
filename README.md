@@ -1,6 +1,6 @@
 # ok.py
 
-![are you ok](http://i0.hdslb.com/video/2f/2fc528fee5d0cbfb98b266bb7ec3a1ad.jpg)
+![are you ok](http://static01.hket.com/res/v3/image/content/595000/597695/68318509gw1ernv3wtm2jj20g40a4jsh_1024.jpg)
 
 > Image from Internet
 
