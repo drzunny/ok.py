@@ -165,7 +165,7 @@ class OKCore(object):
                 src = fn.__src__
                 if filename != src:
                     filename = src
-                    g_logger.say('Test Cases - %s:\n\n' % src, indent=2)
+                    g_logger.say('\n  Test Cases - %s:\n\n' % src)
                 yield fn()
             print('\n' * 2)
         filename = None
@@ -174,7 +174,7 @@ class OKCore(object):
                 src = fn.__src__
                 if filename != src:
                     filename = src
-                    g_logger.say('Benchmark - %s:\n\n' % src, indent=2)
+                    g_logger.say('\n  Benchmark - %s:\n\n' % src)
                 yield fn()
 
 
@@ -298,6 +298,7 @@ def run(allow_details=False):
 
 if __name__ == '__main__':
     import glob
+    import pyok
     allow_details, dest = False, None
     nargs = len(sys.argv)
     if nargs == 2:
@@ -343,4 +344,4 @@ if __name__ == '__main__':
         test_name = os.path.splitext(os.path.basename(dest))[0]
         __import__(test_name)
 
-    run(allow_details)
+    pyok.run(allow_details)
