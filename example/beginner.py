@@ -33,7 +33,7 @@ def check_it_wrong():
 @pyok.test
 def check_it_no_name_but_doc():
     """
-            run outer_exception (this is a __doc__)
+            this is a __doc__
     """
     a = outer_exception()
 

@@ -43,44 +43,50 @@ class FormDict(dict):
             return self[name] if name in self else None
 
 class _Logger(object):
-    def __write(self, s, color, indent):
+    def __write(self, s, color, indent, bright):
         if indent > 0:
             sys.stdout.write(' ' * indent)
         if not color:
             sys.stdout.write(u'%s' % s)
+        elif bright:
+            sys.stdout.write(u'%s%s%s%s' % (colorama.Style.BRIGHT, color, s, colorama.Style.NORMAL))
         else:
             sys.stdout.write(u'%s%s' % (color, s))
         return self
 
-    def ok(self, s=u'√', indent=0):
-        return self.__write(s, colorama.Fore.GREEN, indent)
+    def ok(self, s=u'√', indent=0, bright=False):
+        return self.__write(s, colorama.Fore.GREEN, indent, bright)
 
-    def warn(self, s=u'！', indent=0):
-        return self.__write(s, colorama.Fore.YELLOW, indent)
+    def warn(self, s=u'！', indent=0, bright=False):
+        return self.__write(s, colorama.Fore.YELLOW, indent, bright)
 
-    def fail(self, s=u'×', indent=0):
-        return self.__write(s, colorama.Fore.RED, indent)
+    def fail(self, s=u'×', indent=0, bright=False):
+        return self.__write(s, colorama.Fore.RED, indent, bright)
+
+    def info(self, s, indent=0, bright=False):
+        return self.__write(s, colorama.Fore.CYAN, indent, bright)
 
     def bright(self, s, indent=0):
-        return self.__write(s, colorama.Style.BRIGHT, indent)
+        return self.__write(s, colorama.Style.BRIGHT, indent, False)
 
     def say(self, s, indent=0):
-        return self.__write(s, None, indent)
+        return self.__write(s, None, indent, False)
 
     def summary(self, success, npass=0, nfail=0, elasped=0):
-        details = '  Pass: %s%d%s   Fail: %s%d%s   Elasped: %s%d%s Secs\n\n'
+        details = '  %sPass%s: %d   %sFail%s: %d   %sElasped%s: %d Secs\n\n'
         print('\n\n')
         if success:
-            self.ok('  [ OK ]')
+            self.ok('  [ OK ]', bright=True)
         else:
-            self.fail('  [FAIL]')
-        yellow = colorama.Fore.YELLOW
-        reset = colorama.Fore.RESET
-        sys.stdout.write(details % (yellow, npass, reset, yellow, nfail, reset, yellow, elasped, reset))
+            self.fail('  [FAIL]', bright=True)
+        B = colorama.Style.BRIGHT
+        reset = colorama.Style.NORMAL
+        sys.stdout.write(details % (B, reset, npass, B, reset, nfail, B, reset, elasped))
         return self
 
     def flush(self):
         print()
+        return self
 
 
 g_logger = _Logger()
@@ -246,7 +252,7 @@ def catch(proc, *args, **kwargs):
         return e.__class__
 
 
-def run():
+def run(allow_details=False):
     succ = True
     counter = FormDict(npass=0, nfail=0, elapsed=time.time())
     # show logo
@@ -260,15 +266,19 @@ def run():
         display_name = case.name if not case.desc else case.desc
         if case.ok:
             counter.npass += 1
-            g_logger.ok(indent=8).say(display_name, indent=4)
+            g_logger.ok(indent=6, bright=True).bright(display_name, indent=4)
         else:
             succ = False
             counter.nfail += 1
-            g_logger.fail(indent=8).bright(display_name, indent=4)
+            g_logger.fail(indent=6, bright=True).say(display_name, indent=4)
             if 'error' in case:
-                g_logger.bright(_reason_dict(case.error, code=True, line=True), indent=2)
+                g_logger.say(_reason_dict(case.error, code=True, line=True), indent=2)
+                if allow_details:
+                    g_logger.flush().say(case.error['detail']).flush()
             elif 'exception' in case:
-                g_logger.bright(_reason_dict(case.exception, code=True, line=True), indent=2)
+                g_logger.say(_reason_dict(case.exception, code=True, line=True), indent=2)
+                if allow_details:
+                    g_logger.flush().say(case.exception['detail']).flush()
 
         if 'cost' in case:
             g_logger.say('(n: %d, cost:%f, limit:%f)' % (case.retry, case.cost, case.timeout), indent=2)
@@ -280,3 +290,57 @@ def run():
         _core.cleaner()
 
     return sys.exit(not succ)
+
+
+# -------------------------------------------
+#   Run as script
+# -------------------------------------------
+
+if __name__ == '__main__':
+    import glob
+    allow_details, dest = False, None
+    nargs = len(sys.argv)
+    if nargs == 2:
+        path = sys.argv[1]
+        if not os.path.exists(path):
+            if path in ('-h', '--help', 'help'):
+                print('Nobody help you  :-)')
+            elif path == '--details':
+                print('Where is your test file/directory?')
+            else:
+                print("No such a file or directory : %s" % path)
+            sys.exit(1)
+        dest = path
+    elif nargs >= 3:
+        op, path = sys.argv[1], sys.argv[2]
+        if op == '--details':
+            allow_details = True
+        elif op in ('-h', '--help', 'help'):
+            print('Nobody help you :-(')
+            sys.exit(1)
+        else:
+            print('Unknow option: %s' % op)
+            sys.exit(1)
+        if not os.path.exists(path):
+            print("No such a file or directory : %s" % path)
+            sys.exit(1)
+        else:
+            dest = path
+
+    # TODO: glob the destinations
+    if os.path.isdir(dest):
+        import_path = dest
+        sys.path.append(os.path.abspath(import_path))
+        test_files = glob.glob(dest + '/*.py')
+        for tf in test_files:
+            name = os.path.splitext(os.path.basename(tf))[0]
+            if name == '__init__':
+                continue
+            __import__(name)
+    else:
+        import_path = os.path.dirname(dest)
+        sys.path.append(os.path.abspath(import_path))
+        test_name = os.path.splitext(os.path.basename(dest))[0]
+        __import__(test_name)
+
+    run(allow_details)
