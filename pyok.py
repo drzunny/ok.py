@@ -274,14 +274,14 @@ def run(allow_details=False):
             if 'error' in case:
                 g_logger.say(_reason_dict(case.error, code=True, line=True), indent=2)
                 if allow_details:
-                    g_logger.flush().say(case.error['detail']).flush()
+                    g_logger.flush().warn('\n' + case.error['detail'] + '\n').flush()
             elif 'exception' in case:
                 g_logger.say(_reason_dict(case.exception, code=True, line=True), indent=2)
                 if allow_details:
-                    g_logger.flush().say(case.exception['detail']).flush()
+                    g_logger.flush().warn('\n' + case.exception['detail'] + '\n').flush()
 
-        if 'cost' in case:
-            g_logger.say('(n: %d, cost:%f, limit:%f)' % (case.retry, case.cost, case.timeout), indent=2)
+        if 'benchmark' in case and 'cost' in case.benchmark:
+            g_logger.say('(n: %d, cost:%f, limit:%f)' % (case.benchmark['retry'], case.benchmark['cost'], case.benchmark['timeout']), indent=2)
         g_logger.flush()
 
     counter.elapsed = time.time() - counter.elapsed
