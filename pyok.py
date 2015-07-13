@@ -122,11 +122,6 @@ def _parse_exception_error(src, s, e):
             break
     return error
 
-
-def _parse_except_error():
-    pass
-
-
 def _reason_dict(d, **keys):
     output, s = '(%s)', ''
     first = True
