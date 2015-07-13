@@ -16,6 +16,7 @@ import traceback
 colorama.init(autoreset=True)
 
 __logo__ = '''
+  -----------------------------------
   ARE YOU OK ?
   -----------------------------------
 '''
@@ -23,29 +24,48 @@ __logo__ = '''
 # ----------------------------------------------
 #   helpers
 # ----------------------------------------------
+class FormDict(dict):
+    def __init__(self, **other):
+        super(FormDict, self).__init__()
+        if other:
+            self.update(other)
+
+    def __setattr__(self, name, val):
+        if hasattr(super(FormDict, self), name):
+            setattr(super(FormDict, self), name, val)
+        else:
+            self[name] = val
+
+    def __getattr__(self, name):
+        if hasattr(super(FormDict, self), name):
+            return getattr(super(FormDict, self), name)
+        else:
+            return self[name] if name in self else None
+
 class _Logger(object):
-    def __init__(self):
-        pass
-
-    def space(self, n):
-        sys.stdout.write(' ' * n)
+    def __write(self, s, color, indent):
+        if indent > 0:
+            sys.stdout.write(' ' * indent)
+        if not color:
+            sys.stdout.write(u'%s' % s)
+        else:
+            sys.stdout.write(u'%s%s' % (color, s))
         return self
 
-    def ok(self, s=u'√'):
-        sys.stdout.write(u'%s%s' % (colorama.Fore.GREEN, s))
-        return self
+    def ok(self, s=u'√', indent=0):
+        return self.__write(s, colorama.Fore.GREEN, indent)
 
-    def warn(self, s=u'！'):
-        sys.stdout.write(u'%s%s' % (colorama.Fore.YELLOW, s))
-        return self
+    def warn(self, s=u'！', indent=0):
+        return self.__write(s, colorama.Fore.YELLOW, indent)
 
-    def fail(self, s=u'×'):
-        sys.stdout.write(u'%s%s' % (colorama.Fore.RED, s))
-        return self
+    def fail(self, s=u'×', indent=0):
+        return self.__write(s, colorama.Fore.RED, indent)
 
-    def say(self, s):
-        sys.stdout.write(s)
-        return self
+    def bright(self, s, indent=0):
+        return self.__write(s, colorama.Style.BRIGHT, indent)
+
+    def say(self, s, indent=0):
+        return self.__write(s, None, indent)
 
     def summary(self, success, npass=0, nfail=0, elasped=0):
         details = '  Pass: %s%d%s   Fail: %s%d%s   Elasped: %s%d%s Secs\n\n'
@@ -66,32 +86,61 @@ class _Logger(object):
 g_logger = _Logger()
 
 
-def _show_me_logo():
-    print(__logo__)
-
-
 def _parse_assert_error(s):
-    ret = {'pass': False, 'full': s}
+    error = {'detail': s}
     if not s:
         return ret
     infos = s.strip().split('\n')
-    file_info, what = infos[-3], infos[-2]
+    file_info, code = infos[-3], infos[-2]
     r = re.compile('File "([^"]+)", line (\d+), in (\w+)')
     match = r.findall(file_info)
     if match:
         filename, line, fn = match[0]
     else:
         return ret
-    what = what.strip()
-    ret.update({'pass': False, 'file': filename, 'line': int(line), 'function': fn, 'what': what})
-    return ret
+    code = code.strip()
+    error.update({'file': filename, 'line': int(line), 'function': fn, 'code': code})
+    return error
+
+
+def _parse_exception_error(src, s, e):
+    error = {'detail': s}
+    s, r = s.strip(), re.compile('File "([^"]+)", line (\d+), in (\w+)')
+    infos = s.split('\n')
+    n, src = len(infos), os.path.abspath(src)
+
+    # find the last error in test file
+    for ln in xrange(n-3, -1, -2):
+        text = infos[ln]
+        match = r.findall(text)
+        if not match:
+            continue
+        filename, line, fn = match[0]
+        if os.path.relpath(filename) == os.path.relpath(src):
+            code = infos[ln+1].strip()
+            error.update({'file': filename, 'line': int(line), 'function': fn, 'code': code})
+            break
+    return error
+
+def _reason_dict(d, **keys):
+    output, s = '(%s)', ''
+    first = True
+    for k, v in d.iteritems():
+        if keys and (k not in keys or not keys[k]):
+            continue
+        if not first:
+            s += ', '
+        else:
+            first = False
+        s += '%s: %s' % (k, str(v))
+    return output % s
+
 
 # ----------------------------------------------
 #   core
 # ----------------------------------------------
 class OKCore(object):
     def __init__(self):
-        self.filename = None
         self.ready = None
         self.cleaner = None
         self.benchmark = []
@@ -110,16 +159,16 @@ class OKCore(object):
                 src = fn.__src__
                 if filename != src:
                     filename = src
-                    g_logger.space(2).say('Test Cases - %s:\n\n' % src)
+                    g_logger.say('Test Cases - %s:\n\n' % src, indent=2)
                 yield fn()
-            g_logger.space(2).say('\n\n\n')
+            print('\n' * 2)
         filename = None
         if self.benchmark:
             for fn in self.benchmark:
                 src = fn.__src__
                 if filename != src:
                     filename = src
-                    g_logger.space(2).say('Benchmark - %s:\n\n' % src)
+                    g_logger.say('Benchmark - %s:\n\n' % src, indent=2)
                 yield fn()
 
 
@@ -135,16 +184,19 @@ def ready(fn):
 
 def test(fn):
     def __test_body():
-        err = {'pass': True, 'name': fn.__name__, 'desc': fn.__doc__}
+        ret = FormDict(ok=True, name=fn.__name__, desc=fn.__doc__, src=inspect.getabsfile(fn))
         try:
             fn()
-        except AssertionError, e:
+        except Exception, e:
+            ret.ok = False
             s = cStringIO.StringIO()
             traceback.print_exc(file=s)
-            info = _parse_assert_error(s.getvalue())
-            err.update(info)
+            if isinstance(e, AssertionError):
+                ret.error = _parse_assert_error(s.getvalue())
+            else:
+                ret.exception = _parse_exception_error(ret.src, s.getvalue(), e)
             s.close()
-        return err
+        return ret
     __test_body.__src__ = inspect.getabsfile(fn)
     _core.register(__test_body)
     return fn
@@ -153,12 +205,24 @@ def test(fn):
 def benchmark(n=1, timeout=1000):
     def __benchmark_wrap(fn):
         def __benchmark_body():
-            ret = {'name': fn.__name__, 'desc': fn.__doc__}
-            t = time.time()
-            for i in range(n):
-                fn()
-            cost = time.time() - t
-            ret.update({'cost': cost, 'pass': cost <= timeout, 'timeout': timeout, 'retry': n})
+            ret = FormDict(ok=True, name=fn.__name__, desc=fn.__doc__, src=inspect.getabsfile(fn))
+            ret.benchmark = {'retry': n, 'timeout': timeout, 'cost': 0}
+            fn_src = inspect.getabsfile(fn)
+            cost = 0
+            try:
+                t = time.time()
+                for i in range(n):
+                    fn()
+                cost = time.time() - t
+            except Exception, e:
+                ret.ok = False
+                s = cStringIO.StringIO()
+                traceback.print_exc(file=s)
+                ret.exception = _parse_exception_error(ret.src, s.getvalue(), e)
+                s.close()
+            else:
+                ret.ok = cost <= timeout
+                ret.benchmark['cost'] = cost
             return ret
         __benchmark_body.__src__ = inspect.getabsfile(fn)
         _core.performance(__benchmark_body)
@@ -182,31 +246,34 @@ def catch(proc):
 
 def run():
     succ = True
-    counter = {'pass': 0, 'fail': 0, 'elapsed': time.time()}
+    counter = FormDict(npass=0, nfail=0, elapsed=time.time())
     # show logo
-    _show_me_logo()
+    print(__logo__)
     # if initialize callback is defined
     if _core.ready:
         _core.ready()
 
     # startup test
     for case in _core.loop():
-        if case['pass']:
-            counter['pass'] += 1
-            g_logger.space(8).ok().space(4).say(case['name'])
+        display_name = case.name if not case.desc else case.desc
+        if case.ok:
+            counter.npass += 1
+            g_logger.ok(indent=8).say(display_name, indent=4)
         else:
             succ = False
-            counter['fail'] += 1
-            g_logger.space(8).fail().space(4).say(case['name'])
-            if 'what' in case:
-                g_logger.space(4).say('(%s, line:%d)' % (case['what'], case['line']))
+            counter.nfail += 1
+            g_logger.fail(indent=8).bright(display_name, indent=4)
+            if 'error' in case:
+                g_logger.bright(_reason_dict(case.error, code=True, line=True), indent=2)
+            elif 'exception' in case:
+                g_logger.bright(_reason_dict(case.exception, code=True, line=True), indent=2)
 
         if 'cost' in case:
-            g_logger.space(4).say('(n: %d, cost:%f, limit:%f)' % (case['retry'], case['cost'], case['timeout']))
+            g_logger.say('(n: %d, cost:%f, limit:%f)' % (case.retry, case.cost, case.timeout), indent=2)
         g_logger.flush()
 
-    counter['elapsed'] = time.time() - counter['elapsed']
-    g_logger.summary(succ, counter['pass'], counter['fail'], counter['elapsed'])
+    counter.elapsed = time.time() - counter.elapsed
+    g_logger.summary(succ, counter.npass, counter.nfail, counter.elapsed)
     if _core.cleaner:
         _core.cleaner()
 

@@ -2,6 +2,11 @@
 import fixpath
 import pyok
 
+
+def outer_exception():
+    return 1/0-3
+
+
 @pyok.ready
 def are_you_ready():
     pass
@@ -18,7 +23,11 @@ def check_it_out():
 
 @pyok.test
 def check_it_out2():
-    assert 1 - 2 > 0
+    assert (1 - 2) > 0
+
+@pyok.test
+def check_it_out3():
+    a = outer_exception()
 
 @pyok.benchmark(n=1000, timeout=1000)
 def benchmark_is_ok():
