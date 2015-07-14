@@ -146,6 +146,9 @@ def _reason_dict(d, **keys):
 #   core
 # ----------------------------------------------
 class OKCore(object):
+    """
+        Core of ok.py
+    """
     def __init__(self):
         self.ready = None
         self.cleaner = None
@@ -184,11 +187,17 @@ _core = OKCore()
 #   decorators
 # ----------------------------------------------
 def ready(fn):
+    """
+            register the function as a `ready` function
+    """
     _core.ready = fn
     return fn
 
 
 def test(fn):
+    """
+            Define a test case
+    """
     def __test_body():
         doc = fn.__doc__.strip() if fn.__doc__ else ''
         ret = FormDict(ok=True, name=fn.__name__, desc=doc, src=inspect.getabsfile(fn))
@@ -210,6 +219,12 @@ def test(fn):
 
 
 def benchmark(n=1, timeout=1000):
+    """
+        Define a benchmark
+
+            n:          how many time you want to retry
+            timeout:    timeout is timeout
+    """
     def __benchmark_wrap(fn):
         def __benchmark_body():
             doc = fn.__doc__.strip() if fn.__doc__ else ''
@@ -239,6 +254,9 @@ def benchmark(n=1, timeout=1000):
 
 
 def cleaner(fn):
+    """
+        register a function as a cleaner function
+    """
     _core.cleaner = fn
     return fn
 
@@ -246,6 +264,9 @@ def cleaner(fn):
 #   test apis
 # ----------------------------------------------
 def catch(proc, *args, **kwargs):
+    """
+        execute a function and try to catch and return its exception class
+    """
     try:
         proc(*args, **kwargs)
     except Exception, e:
@@ -253,6 +274,11 @@ def catch(proc, *args, **kwargs):
 
 
 def run(allow_details=False):
+    """
+        start ok.py to test your code
+
+            allow_details: enable traceback.print_exc after exception occured.
+    """
     succ = True
     counter = FormDict(npass=0, nfail=0, elapsed=time.time())
     # show logo
@@ -298,7 +324,7 @@ def run(allow_details=False):
 
 if __name__ == '__main__':
     import glob
-    import pyok
+    import okpy
     allow_details, dest = False, None
     nargs = len(sys.argv)
     if nargs == 2:
@@ -344,4 +370,4 @@ if __name__ == '__main__':
         test_name = os.path.splitext(os.path.basename(dest))[0]
         __import__(test_name)
 
-    pyok.run(allow_details)
+    okpy.run(allow_details)

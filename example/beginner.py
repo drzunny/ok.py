@@ -1,6 +1,6 @@
 # -*- coding:utf8 -*-
 import fixpath
-import pyok
+import okpy
 
 G_ERROR_NUMBER = None
 
@@ -10,49 +10,49 @@ def outer_exception():
 def catcher_exception(n):
     return 1/(n-2)
 
-@pyok.ready
+@okpy.ready
 def are_you_ready():
     global G_ERROR_NUMBER
     G_ERROR_NUMBER = 2
 
 
-@pyok.cleaner
+@okpy.cleaner
 def i_am_cleaner():
     global G_ERROR_NUMBER
     G_ERROR_NUMBER = None
 
 
-@pyok.test
+@okpy.test
 def check_it_true():
     assert 1 != 2
 
-@pyok.test
+@okpy.test
 def check_it_wrong():
     assert (1 - 2) > 0
 
-@pyok.test
+@okpy.test
 def check_it_no_name_but_doc():
     """
             this is a __doc__
     """
     a = outer_exception()
 
-@pyok.test
+@okpy.test
 def check_it_catch():
-    assert pyok.catch(catcher_exception, G_ERROR_NUMBER) in (ZeroDivisionError,)
+    assert okpy.catch(catcher_exception, G_ERROR_NUMBER) in (ZeroDivisionError,)
 
-@pyok.benchmark(n=1000, timeout=1000)
+@okpy.benchmark(n=1000, timeout=1000)
 def benchmark_is_ok():
     n = 0
     for x in xrange(100):
         n += x
 
 
-@pyok.benchmark(n=1, timeout=1)
+@okpy.benchmark(n=1, timeout=1)
 def benchmark_is_fail():
     import time
     time.sleep(3)
 
 
 if __name__ == '__main__':
-    pyok.run()
+    okpy.run()
