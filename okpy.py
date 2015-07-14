@@ -318,11 +318,10 @@ def run(allow_details=False):
     return sys.exit(not succ)
 
 
-# -------------------------------------------
-#   Run as script
-# -------------------------------------------
-
-if __name__ == '__main__':
+# ------------------------------------------
+#   Enctry point for excutable script
+# ------------------------------------------
+def __okpy_entrypoint():
     import glob
     import okpy
     allow_details, dest = False, None
@@ -353,6 +352,9 @@ if __name__ == '__main__':
             sys.exit(1)
         else:
             dest = path
+    else:
+        print('\n\nNothing happend... please use:   (1) okpy <dir>/<file>  (2) okpy --details <dir>/<file>\n\n')
+        return
 
     # TODO: glob the destinations
     if os.path.isdir(dest):
