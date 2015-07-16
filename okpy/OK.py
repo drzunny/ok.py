@@ -10,8 +10,11 @@ import time
 import inspect
 import platform
 import colorama
+import itertools
 import cStringIO
 import traceback
+
+from colorama import Fore, Style
 
 colorama.init(autoreset=True)
 
@@ -22,7 +25,7 @@ __logo__ = '''
 '''
 
 # ----------------------------------------------
-#   Helper Data Structs
+#   Helper Data Structs and methods
 # ----------------------------------------------
 class FormDict(dict):
     def __init__(self, **other):
@@ -43,13 +46,23 @@ class FormDict(dict):
             return self[name] if name in self else None
 
 
+def _case_groupby(cases):
+    group_cases = {}
+    for k, case in itertools.groupby(cases, lambda fn:fn.__src__):
+        if k not in group_cases:
+            group_cases[k] = list(case)
+        else:
+            group_cases[k] += list(case)
+    return group_cases
+
+
 # ----------------------------------------------
 #  Exception Parsers
 # ----------------------------------------------
-class _ExceptionParser:
+class _ResultParser:
     @staticmethod
     def assert_error(s):
-        error = {'detail': s}
+        error = {'details': s}
         if not s:
             return ret
         infos = s.strip().split('\n')
@@ -66,7 +79,7 @@ class _ExceptionParser:
 
     @staticmethod
     def exception_error(src, s, e):
-        error = {'detail': s}
+        error = {'details': s}
         s, r = s.strip(), re.compile('File "([^"]+)", line (\d+), in (\w+)')
         infos = s.split('\n')
         n, src = len(infos), os.path.abspath(src)
@@ -78,21 +91,28 @@ class _ExceptionParser:
             if not match:
                 continue
             filename, line, fn = match[0]
-            if os.path.relpath(filename) == os.path.relpath(src):
+            if os.path.normcase(filename) == os.path.normcase(src):
                 code = infos[ln+1].strip()
                 error.update({'file': filename, 'line': int(line), 'function': fn, 'code': code})
                 break
         return error
 
     @staticmethod
-    def reason_dict(d, **keys):
-        output, s = '(%s)', ''
-        first = True
-        for k in keys:
-            if k not in d or not keys[k]:
-                continue
-            s += '%s: %s, ' % (k, str(d[k]))
-        return output % s[:-2]
+    def error_reason(d, allow_details=False):
+        output = '(  line:%d | %s   )' % (d['line'], d['code'])
+        output = '%s%s%s%s%s' % (Style.BRIGHT, Fore.YELLOW, output, Fore.RESET, Style.RESET_ALL)
+        if allow_details:
+            output += '\n\n%s%s%s%s%s\n' % (Style.BRIGHT, Fore.BLACK, d['details'], Fore.RESET, Style.RESET_ALL)
+        return output
+
+
+    @staticmethod
+    def benchmark_reason(d):
+        s = '(retry: %d, cost:%f, timeout: %f)' % (d['retry'], d['cost'], d['timeout'])
+        if d['cost'] <= d['timeout']:
+            return s
+        else:
+            return '%s%s%s%s%s' % (Style.BRIGHT, Fore.YELLOW, s, Fore.RESET, Style.RESET_ALL)
 
 
 # ----------------------------------------------
@@ -101,38 +121,62 @@ class _ExceptionParser:
 class _PrettyPrinter:
     @staticmethod
     def logo():
+        """
+            Print logo
+        """
         sys.stdout.write(__logo__)
         print()
 
     @staticmethod
     def title(t, filename):
+        """
+            Print test cases title
+        """
         sys.stdout.write('\n  %s - %s\n' % (t, filename))
         print()
 
     @staticmethod
-    def result(ok, desc, info=None, details=None):
-        if ok:
-            sys.stdout.write(u'      %s%s%s%s' % (colorama.Style.BRIGHT, colorama.Fore.GREEN, u'√', colorama.Style.NORMAL))
-            sys.stdout.write(u'    %s%s%s' % (colorama.Style.BRIGHT, desc, colorama.Style.NORMAL))
+    def result(cases, allow_details=False):
+        """
+            Print details result
+        """
+        cases_name = cases.desc if cases.desc else cases.name
+        is_benchmark = 'benchmark' in cases
+        if cases.ok:
+            sys.stdout.write(u'      %s%s%s%s' % (Style.BRIGHT, Fore.GREEN, u'√', Style.NORMAL))
+            sys.stdout.write(u'    %s%s%s    ' % (Style.BRIGHT, cases_name, Style.NORMAL))
+            if allow_details and is_benchmark:
+                sys.stdout.write(_ResultParser.benchmark_reason(cases.benchmark))
         else:
-            sys.stdout.write(u'      %s%s%s%s' % (colorama.Style.BRIGHT, colorama.Fore.RED, u'×', colorama.Style.NORMAL))
-            sys.stdout.write(u'    %s  ' % desc)
-            if info:
-                sys.stdout.write(_ExceptionParser.reason_dict(info, code=True, line=True))
-            if details:
-                sys.stdout.write('\n\n%s\n' % details)
+            sys.stdout.write(u'      %s%s%s%s' % (Style.BRIGHT, Fore.RED, u'×', Style.NORMAL))
+            sys.stdout.write(u'    %s%s    ' % (Style.NORMAL, cases_name))
+
+            # Print Exception > Print (benchmark fail | assert fail)
+            trace_text = None
+            if 'exception' in cases:
+                sys.stdout.write(_ResultParser.error_reason(cases.exception, allow_details))
+            elif is_benchmark:
+                sys.stdout.write(_ResultParser.benchmark_reason(cases.benchmark))
+            else:
+                sys.stdout.write(_ResultParser.error_reason(cases.error, allow_details))
+
+        # next line
         print()
+
 
     @staticmethod
     def summary(success, npass=0, nfail=0, elasped=0):
+        """
+            Print test summary
+        """
         details = '  %sPass%s: %d   %sFail%s: %d   %sElasped%s: %d Secs\n\n'
         print('\n\n')
-        B = colorama.Style.BRIGHT
-        RESET = colorama.Style.NORMAL
+        B = Style.BRIGHT
+        RESET = Style.NORMAL
         if success:
-            sys.stdout.write('  %s%s[ OK ]%s' % (B, colorama.Fore.GREEN, RESET))
+            sys.stdout.write('  %s%s[ OK ]%s' % (B, Fore.GREEN, RESET))
         else:
-            sys.stdout.write('  %s%s[FAIL]%s' % (B, colorama.Fore.RED, RESET))
+            sys.stdout.write('  %s%s[FAIL]%s' % (B, Fore.RED, RESET))
         sys.stdout.write(details % (B, RESET, npass, B, RESET, nfail, B, RESET, elasped))
         print()
 
@@ -140,7 +184,7 @@ class _PrettyPrinter:
 # ----------------------------------------------
 #   core
 # ----------------------------------------------
-class OKPyCore(object):
+class OKPyCore:
     """
         Core of ok.py
     """
@@ -149,30 +193,35 @@ class OKPyCore(object):
     benchmark = []
     cases = []
 
+    @classmethod
     def register(cls, func):
         cls.cases.append(func)
 
+    @classmethod
     def performance(cls, func):
         cls.benchmark.append(func)
 
+    @classmethod
     def loop(cls):
-        filename = None
-        if self.cases:
-            for fn in self.cases:
-                src = fn.__src__
-                if filename != src:
-                    filename = src
-                    g_logger.say('\n  Test Cases - %s:\n\n' % src)
-                yield fn()
-            print('\n' * 2)
-        filename = None
-        if cls.benchmark:
-            for fn in cls.benchmark:
-                src = fn.__src__
-                if filename != src:
-                    filename = src
-                    g_logger.say('\n  Benchmark - %s:\n\n' % src)
-                yield fn()
+        """
+            Execute the test cases and yield its results
+        """
+        cases_groups, benchmark_groups = _case_groupby(cls.cases), _case_groupby(cls.benchmark)
+        # test cases
+        for k, cases in cases_groups.iteritems():
+            for fn in cases:
+                yield 'DATA', k, fn()
+
+        # have a break
+        yield 'PAUSE', None, None
+
+        # benchmakr start
+        for k, cases in benchmark_groups.iteritems():
+            for fn in cases:
+                yield 'DATA', k , fn()
+
+        yield 'END', None, None
+
 
 
 # ----------------------------------------------
@@ -182,7 +231,7 @@ def ready(fn):
     """
             register the function as a `ready` function
     """
-    OKPyCore.ready = fn
+    OKPyCore.ready = staticmethod(fn)
     return fn
 
 
@@ -200,9 +249,9 @@ def test(fn):
             s = cStringIO.StringIO()
             traceback.print_exc(file=s)
             if isinstance(e, AssertionError):
-                ret.error = _parse_assert_error(s.getvalue())
+                ret.error = _ResultParser.assert_error(s.getvalue())
             else:
-                ret.exception = _parse_exception_error(ret.src, s.getvalue(), e)
+                ret.exception = _ResultParser.exception_error(ret.src, s.getvalue(), e)
             s.close()
         return ret
     __test_body.__src__ = inspect.getabsfile(fn)
@@ -233,7 +282,7 @@ def benchmark(n=1, timeout=1000):
                 ret.ok = False
                 s = cStringIO.StringIO()
                 traceback.print_exc(file=s)
-                ret.exception = _parse_exception_error(ret.src, s.getvalue(), e)
+                ret.exception = _ResultParser.exception_error(ret.src, s.getvalue(), e)
                 s.close()
             else:
                 ret.ok = cost <= timeout
@@ -249,7 +298,7 @@ def cleaner(fn):
     """
         register a function as a cleaner function
     """
-    OKPyCore.cleaner = fn
+    OKPyCore.cleaner = staticmethod(fn)
     return fn
 
 # ----------------------------------------------
@@ -274,36 +323,37 @@ def run(allow_details=False):
     succ = True
     counter = FormDict(npass=0, nfail=0, elapsed=time.time())
     # show logo
-    print(__logo__)
+    _PrettyPrinter.logo()
     # if initialize callback is defined
     if OKPyCore.ready:
         OKPyCore.ready()
 
     # startup test
-    for case in OKPyCore.loop():
-        display_name = case.name if not case.desc else case.desc
-        if case.ok:
+    mode = 'Test Cases'
+    last_file = ''
+
+    # Execute the test cases and read its results
+    for status, filename, cases in OKPyCore.loop():
+        if status == 'PAUSE':
+            mode = 'Benchmark'
+            last_file = ''
+            continue
+        elif status == 'END':
+            break
+
+        if last_file != filename:
+            _PrettyPrinter.title(mode, filename)
+            last_file = filename
+        if cases.ok:
             counter.npass += 1
-            g_logger.ok(indent=6, bright=True).bright(display_name, indent=4)
         else:
-            succ = False
             counter.nfail += 1
-            g_logger.fail(indent=6, bright=True).say(display_name, indent=4)
-            if 'error' in case:
-                g_logger.say(_reason_dict(case.error, code=True, line=True), indent=2)
-                if allow_details:
-                    g_logger.flush().warn('\n' + case.error['detail'] + '\n').flush()
-            elif 'exception' in case:
-                g_logger.say(_reason_dict(case.exception, code=True, line=True), indent=2)
-                if allow_details:
-                    g_logger.flush().warn('\n' + case.exception['detail'] + '\n').flush()
+            succ = False
+        _PrettyPrinter.result(cases, allow_details=allow_details)
 
-        if 'benchmark' in case and 'cost' in case.benchmark:
-            g_logger.say('(n: %d, cost:%f, limit:%f)' % (case.benchmark['retry'], case.benchmark['cost'], case.benchmark['timeout']), indent=2)
-        g_logger.flush()
-
+    # Output the summary result
     counter.elapsed = time.time() - counter.elapsed
-    g_logger.summary(succ, counter.npass, counter.nfail, counter.elapsed)
+    _PrettyPrinter.summary(succ, counter.npass, counter.nfail, counter.elapsed)
     if OKPyCore.cleaner:
         OKPyCore.cleaner()
 

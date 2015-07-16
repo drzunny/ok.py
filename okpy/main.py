@@ -1,5 +1,6 @@
 # -*-coding:utf8-*-
 from __future__ import print_function
+import re
 import os
 import sys
 import glob
@@ -7,7 +8,18 @@ import okpy
 
 
 def __hint(what):
-    print('\n\n%s\n\n', what)
+    print('\n%s\n\n' % what)
+
+
+def __is_a_path(op):
+    if op == '.':
+        return True, op
+    r = re.compile('[/\\:]')
+    if r.search(op):
+        return True, op
+    if not op.startswith('-'):
+        return True, op
+    return False, op.strip('-').replace('-', ' ').replace('_', ' ')
 
 
 def __command_reader(args):
@@ -18,14 +30,18 @@ def __command_reader(args):
         if op == '--details':
             opts.details = True
         else:
-            op = op.strip('--')
-            if op.find('/') >= 0 or op.find('\\') >= 0:
+            is_path, op = __is_a_path(op)
+            if is_path:
                 opts.message = 'Invalid option: %s' % args[0]
                 return False, opts, dest
             else:
-                op = op.replace('-', ' ').replace('_', ' ')
                 opts.message = 'No body %s you.   :-)' % op
                 return False, opts, dest
+    else:
+        is_path, op = __is_a_path(args[0])
+        if not is_path:
+            opts.message = 'No body %s you.   :-(' % op
+            return False, opts, dest
 
     if not os.path.exists(dest):
         opts.message = 'No such file or directory.  (%s)' % dest
@@ -51,9 +67,21 @@ def __setup_tests(path):
 
 
 def okpy_main():
+    """
+Usage:
+    okpy [options] file/directory
+
+options:
+    --details:  output detail traceback if error
+
+anything else?
+    try `okpy --help` or `okpy --love`
+
+--------------------
+Have a nice day  :-)"""
     args = sys.argv
     if len(args) < 2:
-        __hint('')
+        __hint('No input file or directory, are you kidding me? \n\n %s' % okpy_main.__doc__)
         sys.exit(1)
 
     ok, opts, dest = __command_reader(args[1:])
@@ -63,4 +91,4 @@ def okpy_main():
 
     __setup_tests(dest)
     # Only support the `details` options
-    okpy.run(opt.details)
+    okpy.run(opts.details)
