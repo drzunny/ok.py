@@ -6,15 +6,15 @@
 
 **OK.py** is a simple and rough test tool, not a powerful test framework like `nose` or `unittest`, but it's pretty and lightweight.
 
-I'm just a programmer, not a tester. For me, **TEST** means that I input a data to a API, then check the output is whether as same as my expectation.
+For me, **TEST** means that I input a data to a API, then check the output is whether as same as my expectation.
 
-So I wrote **OK.py**.
+So I wrote **OK.py**. It can help me to test my code more easily and explicitly.
 
 If you only care about whether the API(s) output as same as it could be, and do not concern about its environment(such as multi-thread, multi-process), **OK.py** is worth to try.
 
-> **OK.py** will support output JSON result to file in future release
-
-> `EXPECT` is not supported in **OK.py**. Since you want to test your code,  **DON'T FORGIVE ANY ERROR**. `ASSERT` is our good friend.
+> PS1. **OK.py** will support output JSON result to file in future release
+>
+> PS2. `EXPECT` is not supported in **OK.py**. Since you want to test your code,  **DON'T FORGIVE ANY ERROR**. `ASSERT` is our good friend.
 
 # how to use
 
@@ -74,7 +74,7 @@ if __name__ == '__main__':
 
 ```
 
-Thanks for Python's decorator, no "**test**" in our function name now.
+Thanks to Python's decorator, I can name my function as I like.
 
 
 # requirement
