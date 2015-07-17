@@ -208,17 +208,29 @@ class OKPyCore:
         """
         cases_groups, benchmark_groups = _case_groupby(cls.cases), _case_groupby(cls.benchmark)
         # test cases
-        for k, cases in cases_groups.iteritems():
+        for src, cases in cases_groups.iteritems():
+            # run ready function of this file
+            if src in cls.ready:
+                cls.ready[src]()
             for fn in cases:
-                yield 'DATA', k, fn()
+                yield 'DATA', src, fn()
+            # run cleaner function of this file
+            if src in cls.cleaner:
+                cls.cleaner[src]()
 
         # have a break
         yield 'PAUSE', None, None
 
         # benchmakr start
-        for k, cases in benchmark_groups.iteritems():
+        for src, cases in benchmark_groups.iteritems():
+            # run ready function of this file again
+            if src in cls.ready:
+                cls.ready[src]()
             for fn in cases:
-                yield 'DATA', k , fn()
+                yield 'DATA', src, fn()
+            # run cleaner function of this file again
+            if src in cls.cleaner:
+                cls.cleaner[src]()
 
         yield 'END', None, None
 
@@ -345,12 +357,6 @@ def run(allow_details=False):
             break
 
         if last_file != filename:
-            # if test file has been change, execute its ready/cleaner function
-            if last_file and last_file in OKPyCore.cleaner:
-                OKPyCore.cleaner[last_file]()
-            if filename and filename in OKPyCore.ready:
-                OKPyCore.ready[filename]()
-
             _PrettyPrinter.title(mode, filename)
             last_file = filename
         if cases.ok:
