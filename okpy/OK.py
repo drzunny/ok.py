@@ -188,8 +188,8 @@ class OKPyCore:
     """
         Core of ok.py
     """
-    ready = None
-    cleaner = None
+    ready = {}
+    cleaner = {}
     benchmark = []
     cases = []
 
@@ -231,7 +231,8 @@ def ready(fn):
     """
             register the function as a `ready` function
     """
-    OKPyCore.ready = staticmethod(fn)
+    src = os.path.normcase(inspect.getabsfile(fn))
+    OKPyCore.ready[src] = fn
     return fn
 
 
@@ -241,7 +242,7 @@ def test(fn):
     """
     def __test_body():
         doc = fn.__doc__.strip() if fn.__doc__ else ''
-        ret = FormDict(ok=True, name=fn.__name__, desc=doc, src=inspect.getabsfile(fn))
+        ret = FormDict(ok=True, name=fn.__name__, desc=doc, src=os.path.normcase(inspect.getabsfile(fn)))
         try:
             fn()
         except Exception, e:
@@ -254,7 +255,7 @@ def test(fn):
                 ret.exception = _ResultParser.exception_error(ret.src, s.getvalue(), e)
             s.close()
         return ret
-    __test_body.__src__ = inspect.getabsfile(fn)
+    __test_body.__src__ = os.path.normcase(inspect.getabsfile(fn))
     OKPyCore.register(__test_body)
     return fn
 
@@ -269,9 +270,8 @@ def benchmark(n=1, timeout=1000):
     def __benchmark_wrap(fn):
         def __benchmark_body():
             doc = fn.__doc__.strip() if fn.__doc__ else ''
-            ret = FormDict(ok=True, name=fn.__name__, desc=doc, src=inspect.getabsfile(fn))
+            ret = FormDict(ok=True, name=fn.__name__, desc=doc, src=os.path.normcase(inspect.getabsfile(fn)))
             ret.benchmark = {'retry': n, 'timeout': timeout, 'cost': 0}
-            fn_src = inspect.getabsfile(fn)
             cost = 0
             try:
                 t = time.time()
@@ -288,7 +288,7 @@ def benchmark(n=1, timeout=1000):
                 ret.ok = cost <= timeout
                 ret.benchmark['cost'] = cost
             return ret
-        __benchmark_body.__src__ = inspect.getabsfile(fn)
+        __benchmark_body.__src__ = os.path.normcase(inspect.getabsfile(fn))
         OKPyCore.performance(__benchmark_body)
         return fn
     return __benchmark_wrap
@@ -298,7 +298,8 @@ def cleaner(fn):
     """
         register a function as a cleaner function
     """
-    OKPyCore.cleaner = staticmethod(fn)
+    src = os.path.normcase(inspect.getabsfile(fn))
+    OKPyCore.cleaner[src] = fn
     return fn
 
 # ----------------------------------------------
@@ -309,7 +310,13 @@ def catch(proc, *args, **kwargs):
         execute a function and try to catch and return its exception class
     """
     try:
-        proc(*args, **kwargs)
+        spec = inspect.getargspec(proc)
+        if not spec.keywords:
+            proc(*args)
+        elif not spec.varargs and not spec.args:
+            proc(**kwargs)
+        else:
+            proc(*args, **kwargs)
     except Exception, e:
         return e.__class__
 
@@ -324,10 +331,6 @@ def run(allow_details=False):
     counter = FormDict(npass=0, nfail=0, elapsed=time.time())
     # show logo
     _PrettyPrinter.logo()
-    # if initialize callback is defined
-    if OKPyCore.ready:
-        OKPyCore.ready()
-
     # startup test
     mode = 'Test Cases'
     last_file = ''
@@ -342,6 +345,12 @@ def run(allow_details=False):
             break
 
         if last_file != filename:
+            # if test file has been change, execute its ready/cleaner function
+            if last_file and last_file in OKPyCore.cleaner:
+                OKPyCore.cleaner[last_file]()
+            if filename and filename in OKPyCore.ready:
+                OKPyCore.ready[filename]()
+
             _PrettyPrinter.title(mode, filename)
             last_file = filename
         if cases.ok:
@@ -354,7 +363,4 @@ def run(allow_details=False):
     # Output the summary result
     counter.elapsed = time.time() - counter.elapsed
     _PrettyPrinter.summary(succ, counter.npass, counter.nfail, counter.elapsed)
-    if OKPyCore.cleaner:
-        OKPyCore.cleaner()
-
     return sys.exit(not succ)
