@@ -67,7 +67,7 @@ class _ResultParser:
             return ret
         infos = s.strip().split('\n')
         file_info, code = infos[-3], infos[-2]
-        r = re.compile('File "([^"]+)", line (\d+), in (\w+)')
+        r = re.compile(r'File "([^"]+)", line (\d+), in (\w+)')
         match = r.findall(file_info)
         if match:
             filename, line, fn = match[0]
@@ -80,7 +80,7 @@ class _ResultParser:
     @staticmethod
     def exception_error(src, s, e):
         error = {'details': s}
-        s, r = s.strip(), re.compile('File "([^"]+)", line (\d+), in (\w+)')
+        s, r = s.strip(), re.compile(r'File "([^"]+)", line (\d+), in (\w+)')
         infos = s.split('\n')
         n, src = len(infos), os.path.abspath(src)
 
