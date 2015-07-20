@@ -92,7 +92,8 @@ class _ResultParser:
         n, src = len(infos), os.path.abspath(src)
 
         # find the last error in test file
-        for ln in xrange(n-3, -1, -2):
+        # scan each with regex
+        for ln in xrange(n-1, -1, -1):
             text = infos[ln]
             match = r.findall(text)
             if not match:
