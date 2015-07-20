@@ -98,6 +98,7 @@ class _ResultParser:
             if not match:
                 continue
             filename, line, fn = match[0]
+            filename, src = os.path.abspath(filename), os.path.abspath(src)
             if os.path.normcase(filename) == os.path.normcase(src):
                 code = infos[ln+1].strip()
                 error.update({'file': filename, 'line': int(line), 'function': fn, 'code': code})
