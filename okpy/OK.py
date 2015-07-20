@@ -16,7 +16,8 @@ import traceback
 
 from colorama import Fore, Style
 
-colorama.init(autoreset=True)
+if platform.system() == 'Windows':
+    colorama.init(autoreset=True)
 
 __logo__ = '''
   -----------------------------------
@@ -143,12 +144,12 @@ class _PrettyPrinter:
         cases_name = cases.desc if cases.desc else cases.name
         is_benchmark = 'benchmark' in cases
         if cases.ok:
-            sys.stdout.write(u'      %s%s%s%s' % (Style.BRIGHT, Fore.GREEN, u'√', Style.NORMAL))
+            sys.stdout.write(u'      %s%s%s%s%s' % (Style.BRIGHT, Fore.GREEN, u'√', Fore.RESET, Style.NORMAL))
             sys.stdout.write(u'    %s%s%s    ' % (Style.BRIGHT, cases_name, Style.NORMAL))
             if allow_details and is_benchmark:
                 sys.stdout.write(_ResultParser.benchmark_reason(cases.benchmark))
         else:
-            sys.stdout.write(u'      %s%s%s%s' % (Style.BRIGHT, Fore.RED, u'×', Style.NORMAL))
+            sys.stdout.write(u'      %s%s%s%s%s' % (Style.BRIGHT, Fore.RED, u'×', Fore.RESET, Style.NORMAL))
             sys.stdout.write(u'    %s%s    ' % (Style.NORMAL, cases_name))
 
             # Print Exception > Print (benchmark fail | assert fail)
@@ -174,9 +175,9 @@ class _PrettyPrinter:
         B = Style.BRIGHT
         RESET = Style.NORMAL
         if success:
-            sys.stdout.write('  %s%s[ OK ]%s' % (B, Fore.GREEN, RESET))
+            sys.stdout.write('  %s%s[ OK ]%s%s' % (B, Fore.GREEN, Fore.RESET, RESET))
         else:
-            sys.stdout.write('  %s%s[FAIL]%s' % (B, Fore.RED, RESET))
+            sys.stdout.write('  %s%s[FAIL]%s%s' % (B, Fore.RED, Fore.RESET, RESET))
         sys.stdout.write(details % (B, RESET, npass, B, RESET, nfail, B, RESET, elasped))
         print()
 
