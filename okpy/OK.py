@@ -16,8 +16,14 @@ import traceback
 
 from colorama import Fore, Style
 
+C_OK = '√'
+C_FAIL = '×'
+
 if platform.system() == 'Windows':
     colorama.init(autoreset=True)
+    # display unicode in Windows
+    C_OK = C_OK.decode('utf8')
+    C_FAIL = C_FAIL.decode('utf8')
 
 __logo__ = '''
   -----------------------------------
@@ -144,13 +150,13 @@ class _PrettyPrinter:
         cases_name = cases.desc if cases.desc else cases.name
         is_benchmark = 'benchmark' in cases
         if cases.ok:
-            sys.stdout.write(u'      %s%s%s%s%s' % (Style.BRIGHT, Fore.GREEN, u'√', Fore.RESET, Style.NORMAL))
-            sys.stdout.write(u'    %s%s%s    ' % (Style.BRIGHT, cases_name, Style.NORMAL))
+            sys.stdout.write('      %s%s%s%s%s' % (Style.BRIGHT, Fore.GREEN, C_OK, Fore.RESET, Style.NORMAL))
+            sys.stdout.write('    %s%s%s    ' % (Style.BRIGHT, cases_name, Style.NORMAL))
             if allow_details and is_benchmark:
                 sys.stdout.write(_ResultParser.benchmark_reason(cases.benchmark))
         else:
-            sys.stdout.write(u'      %s%s%s%s%s' % (Style.BRIGHT, Fore.RED, u'×', Fore.RESET, Style.NORMAL))
-            sys.stdout.write(u'    %s%s    ' % (Style.NORMAL, cases_name))
+            sys.stdout.write('      %s%s%s%s%s' % (Style.BRIGHT, Fore.RED, C_FAIL, Fore.RESET, Style.NORMAL))
+            sys.stdout.write('    %s%s    ' % (Style.NORMAL, cases_name))
 
             # Print Exception > Print (benchmark fail | assert fail)
             trace_text = None
