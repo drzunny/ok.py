@@ -331,13 +331,7 @@ def catch(proc, *args, **kwargs):
         execute a function and try to catch and return its exception class
     """
     try:
-        spec = inspect.getargspec(proc)
-        if not spec.keywords:
-            proc(*args)
-        elif not spec.varargs and not spec.args:
-            proc(**kwargs)
-        else:
-            proc(*args, **kwargs)
+        proc(*args, **kwargs)
     except Exception, e:
         return e.__class__
 
