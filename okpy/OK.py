@@ -298,7 +298,7 @@ def benchmark(n=1, timeout=1000):
                 t = time.time()
                 for i in range(n):
                     fn()
-                cost = time.time() - t
+                cost = (time.time() - t) * 1000   # ms
             except Exception, e:
                 ret.ok = False
                 s = cStringIO.StringIO()
