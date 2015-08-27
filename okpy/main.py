@@ -5,13 +5,23 @@ import os
 import sys
 import glob
 import okpy
+import argparse
 
+G_PARSER = argparse.ArgumentParser(prog='okpy', description='Run okpy for testing')
+G_PARSER.add_argument('target', help='test a package or python file', type=str)
+G_PARSER.add_argument('-d', '--details', help='show errors and exception if test case is fail', action='store_true')
+G_PARSER.add_argument('--love', help='who will love you ?', action='store_true')
 
-def __hint(what):
+G_OPTIONS = G_PARSER.parse_args()
+
+# --------------------------------------------
+#  Helper functions
+# --------------------------------------------
+def _hint(what):
     print('\n%s\n\n' % what)
 
 
-def __is_a_path(op):
+def _is_a_path(op):
     if op == '.':
         return True, op
     r = re.compile('[/\\:]')
@@ -22,35 +32,7 @@ def __is_a_path(op):
     return False, op.strip('-').replace('-', ' ').replace('_', ' ')
 
 
-def __command_reader(args):
-    ok, opts, dest = True, okpy.FormDict(), args[-1]
-    nargs = len(args)
-    if nargs > 1:
-        op, dest = args[0], args[1]
-        if op == '--details':
-            opts.details = True
-        else:
-            is_path, op = __is_a_path(op)
-            if is_path:
-                opts.message = 'Invalid option: %s' % args[0]
-                return False, opts, dest
-            else:
-                opts.message = 'No body %s you.   :-)' % op
-                return False, opts, dest
-    else:
-        is_path, op = __is_a_path(args[0])
-        if not is_path:
-            opts.message = 'No body %s you.   :-(' % op
-            return False, opts, dest
-
-    if not os.path.exists(dest):
-        opts.message = 'No such file or directory.  (%s)' % dest
-        return False, opts, dest
-
-    return ok, opts, dest
-
-
-def __setup_tests(path):
+def _setup_tests(path):
     full_path = os.path.abspath(path)
     if os.path.isdir(path):
         sys.path.append(full_path)
@@ -66,6 +48,9 @@ def __setup_tests(path):
         __import__(module_name)
 
 
+# --------------------------------------------
+#  Entrypoint
+# --------------------------------------------
 def okpy_main():
     """
 Usage:
@@ -79,16 +64,14 @@ anything else?
 
 --------------------
 Have a nice day  :-)"""
-    args = sys.argv
-    if len(args) < 2:
-        __hint('No input file or directory, are you kidding me? \n\n %s' % okpy_main.__doc__)
+    if not G_OPTIONS.target:
+        _hint('No input file or directory, are you kidding me? \n\n %s' % okpy_main.__doc__)
         sys.exit(1)
 
-    ok, opts, dest = __command_reader(args[1:])
-    if not ok:
-        __hint(opts.message)
+    if G_OPTIONS.love:
+        _hint('No body love you :-P')
         sys.exit(1)
 
-    __setup_tests(dest)
+    _setup_tests(G_OPTIONS.target)
     # Only support the `details` options
-    okpy.run(opts.details)
+    okpy.run(G_OPTIONS.details)
