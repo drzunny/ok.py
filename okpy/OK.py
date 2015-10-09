@@ -230,7 +230,7 @@ class OKPyCore:
         # have a break
         yield 'PAUSE', None, None
 
-        # benchmakr start
+        # benchmark start
         for src, cases in benchmark_groups.iteritems():
             # run ready function of this file again
             if src in cls.ready:
