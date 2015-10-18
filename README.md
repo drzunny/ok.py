@@ -1,9 +1,5 @@
 # ok.py
 
-![are you ok](http://static01.hket.com/res/v3/image/content/595000/597695/68318509gw1ernv3wtm2jj20g40a4jsh_1024.jpg)
-
-> Image from Internet
-
 **OK.py** is a simple and rough test tool, not a powerful test framework like `nose` or `unittest`, but it's pretty and lightweight.
 
 For me, **TEST** means that I input a data to a API, then check the output is whether as same as my expectation.
